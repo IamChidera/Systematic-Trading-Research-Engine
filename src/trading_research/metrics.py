@@ -38,8 +38,8 @@ def cagr(equity: pd.Series, dates: pd.Series | pd.Index) -> float | None:
     end = float(equity.iloc[-1])
     if start <= 0 or end <= 0:
         return None
-    first = pd.Timestamp(dates[0])
-    last = pd.Timestamp(dates[-1])
+    first = pd.Timestamp(dates.iloc[0] if hasattr(dates, "iloc") else dates[0])
+    last = pd.Timestamp(dates.iloc[-1] if hasattr(dates, "iloc") else dates[-1])
     years = (last - first).days / 365.25
     if years <= 0:
         return None

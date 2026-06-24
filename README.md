@@ -16,6 +16,7 @@ It is designed as a research and engineering project, not as financial advice or
 - Paper-live state persistence with SQLite
 - Crash-tolerant monitoring loop
 - Clean reporting for equity, drawdown, trades, and alerts
+- Paper-live operational status tracking
 
 ## Results Preview
 
@@ -45,6 +46,21 @@ src/trading_research/
 ```
 
 More detail is available in [docs/architecture.md](docs/architecture.md).
+
+## Paper-Live Monitoring Status
+
+The research system has a paper-live monitoring layer that preserves state between cycles, records bot status, and checks whether live market behavior matches historical assumptions.
+
+Current project status:
+
+- paper-live supervisor: operational
+- state persistence: implemented with SQLite/report files
+- dashboard/reporting: available for daily review
+- live trade sample: pending market signals
+
+This means the system has operational evidence, but not yet a meaningful live trade sample. The next milestone is to compare the first live paper trades against historical expectations for signal frequency, drawdown, execution behavior, and portfolio allocation.
+
+More detail is available in [docs/live_monitoring.md](docs/live_monitoring.md).
 
 ## Research Pipeline
 
@@ -220,6 +236,7 @@ Planned extensions:
 - unit tests for execution and portfolio allocation
 - optional exchange adapter interface for paper/live separation
 - dashboard for paper-live monitoring
+- permission-layer research across BTC, QQQ, credit, and alt-cycle leaders
 
 ## Example Output
 
