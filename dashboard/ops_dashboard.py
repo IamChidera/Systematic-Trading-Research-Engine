@@ -140,6 +140,46 @@ def load_latest_reports() -> pd.DataFrame:
     return pd.DataFrame(latest_reports)
 
 
+def flatten_seed_results(seed_report: dict) -> pd.DataFrame:
+    rows = []
+    for result in seed_report.get("results", []):
+        bot = result.get("bot")
+        if "results" in result:
+            for item in result.get("results", []):
+                rows.append(
+                    {
+                        "bot": bot,
+                        "symbol": item.get("symbol"),
+                        "status": item.get("status"),
+                        "notional": item.get("notional"),
+                        "format": item.get("format"),
+                    }
+                )
+        elif "seeded" in result:
+            for item in result.get("seeded", []):
+                rows.append(
+                    {
+                        "bot": bot,
+                        "symbol": item.get("symbol"),
+                        "status": "seeded",
+                        "notional": item.get("notional"),
+                        "format": "native",
+                    }
+                )
+        elif "repaired" in result:
+            for item in result.get("repaired", []):
+                rows.append(
+                    {
+                        "bot": bot,
+                        "symbol": item.get("symbol"),
+                        "status": "repaired",
+                        "notional": None,
+                        "format": item.get("format"),
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
 def show_bot_snapshot(name: str, report: dict, gate_label: str = "Gate") -> None:
     st.markdown(f"**{name}**")
     st.write(gate_label + ":", report.get("btc_ok", report.get("gate_ok", "unknown")))
@@ -167,6 +207,7 @@ bot3_core = read_json("bot3_core_latest.json")
 bot7 = read_json("bot7_v6_latest.json")
 bot10 = read_json("bot10_growth_latest.json")
 bot26 = read_json("bot26_qqq_substitute_latest.json")
+seed_report = read_json("seed_active_inventory_latest.json")
 
 last_cycle = heartbeat.get("last_cycle_finished_at")
 last_cycle_age = age_minutes(last_cycle)
@@ -212,6 +253,14 @@ with tab1:
     if not actions.empty:
         st.subheader("Bot3 Latest Actions")
         st.dataframe(actions, use_container_width=True)
+
+    st.subheader("Seeded Inventory")
+    seed_rows = flatten_seed_results(seed_report)
+    if not seed_rows.empty:
+        st.caption(f"Last seed action: {seed_report.get('created_at', 'unknown')}")
+        st.dataframe(seed_rows, use_container_width=True)
+    else:
+        st.info("No seeded inventory report found.")
 
     st.subheader("Supervisor Components")
     results = pd.DataFrame(heartbeat.get("results", []))
@@ -262,12 +311,17 @@ with tab3:
 
     st.subheader("Open Positions")
     position_rows = []
-    for bot_name, report in {
-        "bot3": bot3_display,
-        "bot7": bot7,
-        "bot10": bot10,
-        "bot26": bot26,
-    }.items():
+    report_map = {"bot3": bot3_display}
+    if REPORT_DIR.exists():
+        for path in sorted(REPORT_DIR.glob("*_latest.json")):
+            if path.name.startswith(("seed_active_inventory", "gate_audit")):
+                continue
+            try:
+                report_map[path.name.replace("_latest.json", "")] = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    for bot_name, report in report_map.items():
         positions = report.get("positions", {})
         if isinstance(positions, dict):
             for symbol, position in positions.items():
