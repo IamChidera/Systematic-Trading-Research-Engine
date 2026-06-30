@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Streamlit dashboard for paper-live trading operations.
 
 Set PAPER_OPS_ROOT to the folder that contains the paper-live reports and logs.
@@ -50,11 +50,41 @@ def metric_value(value: object, default: str = "n/a") -> object:
 def count_items(value: object) -> int:
     if value is None:
         return 0
-    if isinstance(value, dict | list):
+    if isinstance(value, (dict, list)):
         return len(value)
     return 0
 
 
+def as_float(value: object, default: float = 0.0) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+
+def arrow_safe_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Make mixed dashboard records safe for Streamlit's Arrow serializer."""
+    if df.empty:
+        return df
+    safe = df.copy()
+    for column in safe.columns:
+        if safe[column].dtype != "object":
+            continue
+
+        def normalize(value: object) -> str:
+            if value is None:
+                return ""
+            if isinstance(value, float) and pd.isna(value):
+                return ""
+            if isinstance(value, (dict, list, tuple, set)):
+                return json.dumps(value, sort_keys=True, default=str)
+            return str(value)
+
+        safe[column] = safe[column].map(normalize)
+    return safe
 def report_created_at(report: dict) -> str | None:
     return report.get("created_at") or report.get("finished_at") or report.get("timestamp")
 
@@ -180,6 +210,33 @@ def flatten_seed_results(seed_report: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def portfolio_tally(portfolio: dict) -> dict:
+    weights = portfolio.get("weights", {})
+    rows = []
+    calculated = 0.0
+    for bot_name, weight in weights.items():
+        bot_report = portfolio.get(bot_name, {})
+        equity = as_float(bot_report.get("normalized_equity", bot_report.get("equity")))
+        weight_float = as_float(weight)
+        contribution = equity * weight_float
+        calculated += contribution
+        rows.append(
+            {
+                "bot": bot_name,
+                "weight": weight_float,
+                "normalized_equity": equity,
+                "weighted_contribution": contribution,
+            }
+        )
+    reported = as_float(portfolio.get("paper_equity_normalized"))
+    return {
+        "reported": reported,
+        "calculated": calculated,
+        "difference": reported - calculated,
+        "rows": rows,
+    }
+
+
 def show_bot_snapshot(name: str, report: dict, gate_label: str = "Gate") -> None:
     st.markdown(f"**{name}**")
     st.write(gate_label + ":", report.get("btc_ok", report.get("gate_ok", "unknown")))
@@ -214,20 +271,29 @@ last_cycle_age = age_minutes(last_cycle)
 bot3 = portfolio.get("bot3", {})
 bot3_display = bot3_core if bot3_core else bot3
 distance = load_latest_reports()
+tally = portfolio_tally(portfolio)
 
-top = st.columns(6)
+top = st.columns(7)
 top[0].metric("Supervisor", heartbeat.get("status", "unknown"))
 top[1].metric("Cycle", metric_value(heartbeat.get("cycle")))
 top[2].metric("Last Cycle Age", "n/a" if last_cycle_age is None else f"{last_cycle_age:.1f} min")
 top[3].metric("Portfolio Equity", metric_value(portfolio.get("paper_equity_normalized")))
 top[4].metric("Return", f"{portfolio.get('paper_return_pct', 'n/a')}%")
 top[5].metric("Bot3 Equity", metric_value(bot3_display.get("equity")))
+top[6].metric("Tally Diff", f"{tally['difference']:.4f}")
 
 alerts = portfolio.get("alerts", [])
 if alerts:
     st.error("Alerts: " + ", ".join(alerts))
 else:
     st.success("No portfolio alerts")
+
+if abs(tally["difference"]) > 0.10:
+    st.warning(
+        "Portfolio tally mismatch: "
+        f"reported={tally['reported']:.2f}, calculated={tally['calculated']:.2f}, "
+        f"difference={tally['difference']:.4f}"
+    )
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
     ["Overview & Bots", "Why No Trades?", "Signals & Positions", "Charts & History", "Logs"]
@@ -252,13 +318,20 @@ with tab1:
     actions = pd.DataFrame(bot3_display.get("latest_actions", []))
     if not actions.empty:
         st.subheader("Bot3 Latest Actions")
-        st.dataframe(actions, use_container_width=True)
+        st.dataframe(arrow_safe_dataframe(actions), use_container_width=True)
+
+    st.subheader("Portfolio Tally")
+    tally_rows = pd.DataFrame(tally["rows"])
+    if not tally_rows.empty:
+        st.dataframe(arrow_safe_dataframe(tally_rows), use_container_width=True)
+    else:
+        st.info("No portfolio weights found.")
 
     st.subheader("Seeded Inventory")
     seed_rows = flatten_seed_results(seed_report)
     if not seed_rows.empty:
         st.caption(f"Last seed action: {seed_report.get('created_at', 'unknown')}")
-        st.dataframe(seed_rows, use_container_width=True)
+        st.dataframe(arrow_safe_dataframe(seed_rows), use_container_width=True)
     else:
         st.info("No seeded inventory report found.")
 
@@ -270,7 +343,7 @@ with tab1:
             for column in ["name", "ok", "returncode", "started_at", "finished_at"]
             if column in results
         ]
-        st.dataframe(results[columns], use_container_width=True)
+        st.dataframe(arrow_safe_dataframe(results[columns]), use_container_width=True)
     else:
         st.info("No supervisor results found.")
 
@@ -292,7 +365,7 @@ with tab2:
         display_distance = distance[preferred].copy()
         display_distance["gate"] = display_distance["gate"].astype(str)
         display_distance["updated"] = display_distance["updated"].astype(str)
-        st.dataframe(display_distance, use_container_width=True)
+        st.dataframe(arrow_safe_dataframe(display_distance), use_container_width=True)
     else:
         st.info("No latest bot reports found.")
 
@@ -305,7 +378,7 @@ with tab3:
             for column in ["symbol", "price", "score", "mom90", "mom30", "mom7", "healthy"]
             if column in signals
         ]
-        st.dataframe(signals[preferred], use_container_width=True)
+        st.dataframe(arrow_safe_dataframe(signals[preferred]), use_container_width=True)
     else:
         st.info("No Bot7 signal report found.")
 
@@ -332,7 +405,7 @@ with tab3:
                     row["position"] = position
                 position_rows.append(row)
     if position_rows:
-        st.dataframe(pd.DataFrame(position_rows), use_container_width=True)
+        st.dataframe(arrow_safe_dataframe(pd.DataFrame(position_rows)), use_container_width=True)
     else:
         st.info("No open positions reported.")
 
@@ -377,3 +450,6 @@ with tab5:
         with st.expander(path.name):
             text = path.read_text(encoding="utf-8", errors="replace")
             st.code("\n".join(text.splitlines()[-80:]), language="text")
+
+
+
