@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 
@@ -119,20 +120,59 @@ def summarize_report(path: Path) -> dict:
     }
 
 
-st.set_page_config(page_title="Paper Trading Ops", layout="wide")
-st.title("Paper Trading Operations")
-st.caption(f"Reading reports from: {REPORT_DIR}")
+def plot_equity(history: list | None):
+    if not history:
+        return None
+    df = pd.DataFrame(history)
+    if "timestamp" in df.columns and "equity" in df.columns:
+        return px.line(df, x="timestamp", y="equity", title="Equity Curve")
+    return None
+
+
+def load_latest_reports() -> pd.DataFrame:
+    latest_reports = []
+    if REPORT_DIR.exists():
+        for path in sorted(REPORT_DIR.glob("*_latest.json")):
+            try:
+                latest_reports.append(summarize_report(path))
+            except (json.JSONDecodeError, OSError, TypeError, ValueError):
+                continue
+    return pd.DataFrame(latest_reports)
+
+
+def show_bot_snapshot(name: str, report: dict, gate_label: str = "Gate") -> None:
+    st.markdown(f"**{name}**")
+    st.write(gate_label + ":", report.get("btc_ok", report.get("gate_ok", "unknown")))
+    st.write("Equity:", report.get("equity", report.get("paper_equity_normalized", "unknown")))
+    st.write("Orders:", count_items(report.get("orders")))
+    if report.get("positions"):
+        st.json(report.get("positions", {}))
+
+
+st.set_page_config(page_title="Trading Ops Dashboard", layout="wide")
+st.title("Systematic Trading Ops Dashboard")
+st.caption(f"OPS root: {OPS_ROOT}")
+
+with st.sidebar:
+    st.subheader("Controls")
+    st.write(f"Reports: `{REPORT_DIR}`")
+    st.write(f"Logs: `{LOG_DIR}`")
+    if st.button("Refresh Data", use_container_width=True):
+        st.rerun()
+    st.info("Set PAPER_OPS_ROOT for a custom report location.")
 
 heartbeat = read_json("paper_supervisor_heartbeat.json")
 portfolio = read_json("portfolio_v3_growth_latest.json")
 bot3_core = read_json("bot3_core_latest.json")
 bot7 = read_json("bot7_v6_latest.json")
 bot10 = read_json("bot10_growth_latest.json")
+bot26 = read_json("bot26_qqq_substitute_latest.json")
 
 last_cycle = heartbeat.get("last_cycle_finished_at")
 last_cycle_age = age_minutes(last_cycle)
 bot3 = portfolio.get("bot3", {})
 bot3_display = bot3_core if bot3_core else bot3
+distance = load_latest_reports()
 
 top = st.columns(6)
 top[0].metric("Supervisor", heartbeat.get("status", "unknown"))
@@ -148,86 +188,138 @@ if alerts:
 else:
     st.success("No portfolio alerts")
 
-st.subheader("Bot State")
-cols = st.columns(3)
-with cols[0]:
-    st.markdown("**Bot3 Core**")
-    st.write("Latest log:", bot3_display.get("latest_log", "unknown"))
-    st.write("Equity:", bot3_display.get("equity", "unknown"))
-    st.write("Orders:", len(bot3_display.get("orders", [])))
-    st.dataframe(pd.DataFrame(bot3_display.get("latest_actions", [])), use_container_width=True)
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    ["Overview & Bots", "Why No Trades?", "Signals & Positions", "Charts & History", "Logs"]
+)
 
-with cols[1]:
-    st.markdown("**Bot7 Rotation**")
-    st.write("BTC gate:", bot7.get("btc_ok", "unknown"))
-    st.write("Equity:", bot7.get("equity", "unknown"))
-    st.write("Orders:", len(bot7.get("orders", [])))
-    st.json(bot7.get("positions", {}))
+with tab1:
+    st.subheader("Bot State")
+    cols = st.columns(4)
+    with cols[0]:
+        st.markdown("**Bot3 Core**")
+        st.write("Latest log:", bot3_display.get("latest_log", "unknown"))
+        st.write("Equity:", bot3_display.get("equity", "unknown"))
+        st.write("Orders:", count_items(bot3_display.get("orders")))
+    with cols[1]:
+        show_bot_snapshot("Bot7 Rotation", bot7, "BTC gate")
+    with cols[2]:
+        show_bot_snapshot("Bot10 Growth", bot10, "BTC gate")
+        st.write("Leaders:", bot10.get("leaders", []))
+    with cols[3]:
+        show_bot_snapshot("Bot26 QQQ Substitute", bot26, "Gate")
 
-with cols[2]:
-    st.markdown("**Bot10 Growth**")
-    st.write("BTC gate:", bot10.get("btc_ok", "unknown"))
-    st.write("Equity:", bot10.get("equity", "unknown"))
-    st.write("Orders:", len(bot10.get("orders", [])))
-    st.write("Leaders:", bot10.get("leaders", []))
+    actions = pd.DataFrame(bot3_display.get("latest_actions", []))
+    if not actions.empty:
+        st.subheader("Bot3 Latest Actions")
+        st.dataframe(actions, use_container_width=True)
 
-st.subheader("Supervisor Components")
-results = pd.DataFrame(heartbeat.get("results", []))
-if not results.empty:
-    columns = [column for column in ["name", "ok", "returncode", "started_at", "finished_at"] if column in results]
-    st.dataframe(results[columns], use_container_width=True)
-else:
-    st.info("No supervisor results found.")
+    st.subheader("Supervisor Components")
+    results = pd.DataFrame(heartbeat.get("results", []))
+    if not results.empty:
+        columns = [
+            column
+            for column in ["name", "ok", "returncode", "started_at", "finished_at"]
+            if column in results
+        ]
+        st.dataframe(results[columns], use_container_width=True)
+    else:
+        st.info("No supervisor results found.")
 
-st.subheader("Why Nothing Has Fired Yet")
-latest_reports = []
-if REPORT_DIR.exists():
-    for path in sorted(REPORT_DIR.glob("*_latest.json")):
-        try:
-            latest_reports.append(summarize_report(path))
-        except (json.JSONDecodeError, OSError, TypeError, ValueError):
-            continue
+with tab2:
+    st.subheader("Why Nothing Has Fired Yet")
+    if not distance.empty:
+        preferred = [
+            "bot",
+            "gate",
+            "equity",
+            "orders",
+            "positions",
+            "targets",
+            "best_asset",
+            "best_score",
+            "reason_waiting",
+            "updated",
+        ]
+        display_distance = distance[preferred].copy()
+        display_distance["gate"] = display_distance["gate"].astype(str)
+        display_distance["updated"] = display_distance["updated"].astype(str)
+        st.dataframe(display_distance, use_container_width=True)
+    else:
+        st.info("No latest bot reports found.")
 
-distance = pd.DataFrame(latest_reports)
-if not distance.empty:
-    preferred = [
-        "bot",
-        "gate",
-        "equity",
-        "orders",
-        "positions",
-        "targets",
-        "best_asset",
-        "best_score",
-        "reason_waiting",
-        "updated",
-    ]
-    display_distance = distance[preferred].copy()
-    display_distance["gate"] = display_distance["gate"].astype(str)
-    display_distance["updated"] = display_distance["updated"].astype(str)
-    st.dataframe(display_distance, use_container_width=True)
-else:
-    st.info("No latest bot reports found.")
+with tab3:
+    st.subheader("Bot7 Signals")
+    signals = pd.DataFrame(bot7.get("signals", []))
+    if not signals.empty:
+        preferred = [
+            column
+            for column in ["symbol", "price", "score", "mom90", "mom30", "mom7", "healthy"]
+            if column in signals
+        ]
+        st.dataframe(signals[preferred], use_container_width=True)
+    else:
+        st.info("No Bot7 signal report found.")
 
-st.subheader("Bot7 Signals")
-signals = pd.DataFrame(bot7.get("signals", []))
-if not signals.empty:
-    preferred = [
-        column
-        for column in ["symbol", "price", "score", "mom90", "mom30", "mom7", "healthy"]
-        if column in signals
-    ]
-    st.dataframe(signals[preferred], use_container_width=True)
-else:
-    st.info("No Bot7 signal report found.")
+    st.subheader("Open Positions")
+    position_rows = []
+    for bot_name, report in {
+        "bot3": bot3_display,
+        "bot7": bot7,
+        "bot10": bot10,
+        "bot26": bot26,
+    }.items():
+        positions = report.get("positions", {})
+        if isinstance(positions, dict):
+            for symbol, position in positions.items():
+                row = {"bot": bot_name, "symbol": symbol}
+                if isinstance(position, dict):
+                    row.update(position)
+                else:
+                    row["position"] = position
+                position_rows.append(row)
+    if position_rows:
+        st.dataframe(pd.DataFrame(position_rows), use_container_width=True)
+    else:
+        st.info("No open positions reported.")
 
-st.subheader("Recent Logs")
-if LOG_DIR.exists():
-    recent_logs = sorted(LOG_DIR.glob("*.log"), key=lambda path: path.stat().st_mtime, reverse=True)[:8]
-else:
-    recent_logs = []
+with tab4:
+    st.subheader("Equity & Performance Charts")
+    eq_fig = plot_equity(portfolio.get("equity_history"))
+    if eq_fig:
+        st.plotly_chart(eq_fig, use_container_width=True)
+    else:
+        st.info("No equity history available in reports yet.")
 
-for path in recent_logs:
-    with st.expander(path.name):
-        text = path.read_text(encoding="utf-8", errors="replace")
-        st.code("\n".join(text.splitlines()[-80:]), language="text")
+    if not distance.empty and "equity" in distance:
+        chart_df = distance.dropna(subset=["equity"]).copy()
+        if not chart_df.empty:
+            chart_df["equity"] = pd.to_numeric(chart_df["equity"], errors="coerce")
+            chart_df = chart_df.dropna(subset=["equity"])
+        if not chart_df.empty:
+            st.plotly_chart(
+                px.bar(chart_df, x="bot", y="equity", title="Latest Equity by Bot"),
+                use_container_width=True,
+            )
+
+    if not distance.empty:
+        activity = distance[["bot", "orders", "positions", "targets"]].melt(
+            id_vars="bot",
+            var_name="type",
+            value_name="count",
+        )
+        st.plotly_chart(
+            px.bar(activity, x="bot", y="count", color="type", barmode="group", title="Orders, Positions, and Targets"),
+            use_container_width=True,
+        )
+
+with tab5:
+    st.subheader("Recent Logs")
+    if LOG_DIR.exists():
+        recent_logs = sorted(LOG_DIR.glob("*.log"), key=lambda path: path.stat().st_mtime, reverse=True)[:8]
+    else:
+        recent_logs = []
+
+    for path in recent_logs:
+        with st.expander(path.name):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            st.code("\n".join(text.splitlines()[-80:]), language="text")
