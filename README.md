@@ -1,10 +1,10 @@
-# Systematic Trading Research Engine
+﻿# Systematic Trading Research Engine
 
-A Python research framework for testing systematic crypto trading strategies across multiple assets, market regimes, and portfolio allocations.
+A Python research framework for testing systematic crypto trading strategies across multiple assets, market regimes, portfolio allocations, and paper-live operations.
 
-This project focuses on the research process behind algorithmic trading systems: data preparation, backtesting, walk-forward validation, fee stress testing, regime detection, portfolio construction, and paper-live monitoring.
+The project demonstrates the engineering process behind an algorithmic trading system: data preparation, backtesting, walk-forward validation, fee stress testing, regime detection, portfolio construction, stateful paper monitoring, execution dry-runs, risk checks, and daily operational review.
 
-It is designed as a research and engineering project, not as financial advice or a promise of future returns.
+It is a research and engineering project, not financial advice or a promise of future returns.
 
 ## Highlights
 
@@ -15,8 +15,11 @@ It is designed as a research and engineering project, not as financial advice or
 - Walk-forward and year-by-year validation
 - Paper-live state persistence with SQLite
 - Crash-tolerant monitoring loop
-- Clean reporting for equity, drawdown, trades, and alerts
-- Paper-live operational status tracking
+- Execution-cost dry-run simulation
+- Portfolio-level risk snapshots
+- Tiny-live readiness checks
+- Daily operations journal structure
+- Streamlit operations dashboard
 
 ## Results Preview
 
@@ -42,29 +45,13 @@ src/trading_research/
   backtester.py      cash, positions, trades, and equity curves
   portfolio.py       allocation and correlation utilities
   paper_state.py     SQLite paper-state persistence
+  ops.py             paper-live execution, risk, and readiness helpers
   metrics.py         return, CAGR, Sharpe, drawdown, and profit factor
 ```
 
 More detail is available in [docs/architecture.md](docs/architecture.md).
 
-## Paper-Live Monitoring Status
-
-The research system has a paper-live monitoring layer that preserves state between cycles, records bot status, and checks whether live market behavior matches historical assumptions.
-
-Current project status:
-
-- paper-live supervisor: operational
-- state persistence: implemented with SQLite/report files
-- dashboard/reporting: available for daily review
-- live trade sample: pending market signals
-
-This means the system has operational evidence, but not yet a meaningful live trade sample. The next milestone is to compare the first live paper trades against historical expectations for signal frequency, drawdown, execution behavior, and portfolio allocation.
-
-More detail is available in [docs/live_monitoring.md](docs/live_monitoring.md).
-
 ## Research Pipeline
-
-The research workflow is:
 
 ```text
 historical candles
@@ -79,6 +66,30 @@ historical candles
 
 The key principle is to test whether an idea survives outside one attractive backtest period.
 
+## Operational Layer
+
+The project includes a sanitized operations layer for paper-live monitoring:
+
+```text
+bot reports
+  -> execution dry-run
+  -> risk snapshot
+  -> readiness check
+  -> daily journal
+  -> dashboard review
+```
+
+This layer is designed to answer practical questions:
+
+- Is the supervisor still running?
+- Did any bot generate an order?
+- What would the estimated fee, spread, and slippage be?
+- Which bots and assets are currently exposed?
+- Are any guardrails warning before tiny-live review?
+- Is the system waiting healthily or failing silently?
+
+More detail is available in [docs/operations.md](docs/operations.md) and [docs/live_monitoring.md](docs/live_monitoring.md).
+
 ## Core Ideas
 
 The framework compares several independent strategy families:
@@ -89,6 +100,7 @@ The framework compares several independent strategy families:
 | Relative Strength | Rotate toward stronger assets | Diversification sleeve |
 | Trend Pyramid | Add to confirmed winners | Growth sleeve |
 | Portfolio Allocator | Combine engines by target weights | Risk management |
+| Operations Layer | Monitor paper-live execution and risk | Production discipline |
 
 ## Strategy Evaluation
 
@@ -103,6 +115,7 @@ Each strategy is evaluated using:
 - best and worst trade
 - yearly performance
 - fee-stress performance
+- live/paper signal frequency once monitored
 
 The framework also checks whether strategies are complementary by comparing their return correlations.
 
@@ -121,6 +134,9 @@ Risk controls include:
 - paper-state recovery
 - fee and slippage stress testing
 - portfolio-level allocation limits
+- stale heartbeat detection
+- supervisor failure alerts
+- readiness checks before any tiny-live review
 
 ## Performance Results
 
@@ -143,6 +159,8 @@ These figures are historical research results and should not be treated as expec
 - Are strategy returns correlated or complementary?
 - Can regime filters reduce drawdown without removing too much upside?
 - Does a simple static allocation beat more complex dynamic allocators?
+- Is a quiet paper-live period healthy waiting or silent failure?
+- Would a generated order still make sense after spread, fee, and slippage assumptions?
 
 ## Project Structure
 
@@ -161,14 +179,21 @@ Systematic-Trading-Research-Engine/
       strategies.py
       portfolio.py
       paper_state.py
+      ops.py
   scripts/
     run_backtest.py
     run_regime_scan.py
     run_paper_cycle.py
+  dashboard/
+    ops_dashboard.py
   docs/
     architecture.md
     methodology.md
+    operations.md
+    live_monitoring.md
     sample_results.md
+    assets/
+  tests/
 ```
 
 ## Installation
@@ -226,6 +251,31 @@ python scripts/run_paper_cycle.py --state-file paper_state.db
 
 The paper cycle uses SQLite to preserve cash, positions, and events between runs.
 
+## Run the Operations Dashboard
+
+```bash
+streamlit run dashboard/ops_dashboard.py
+```
+
+On Windows PowerShell:
+
+```powershell
+streamlit run dashboard\ops_dashboard.py
+```
+
+To point the dashboard at a custom paper-live report folder:
+
+```powershell
+$env:PAPER_OPS_ROOT="C:\path\to\top5_ops"
+streamlit run dashboard\ops_dashboard.py
+```
+
+## Run Tests
+
+```bash
+python -m pytest
+```
+
 ## Future Improvements
 
 Planned extensions:
@@ -233,9 +283,8 @@ Planned extensions:
 - richer chart generation from saved equity curves
 - additional walk-forward reporting
 - automated HTML performance reports
-- unit tests for execution and portfolio allocation
 - optional exchange adapter interface for paper/live separation
-- dashboard for paper-live monitoring
+- stricter tests for execution, risk, and readiness paths
 - permission-layer research across BTC, QQQ, credit, and alt-cycle leaders
 
 ## Example Output
@@ -251,6 +300,8 @@ Typical reports include:
 | Trades | Number of completed trades |
 | Profit Factor | Gross profit divided by gross loss |
 | Win Rate | Percentage of winning trades |
+| Paper Ops Ready | Whether the supervisor and guardrails are healthy |
+| Dry-Run Tickets | Simulated order tickets before live execution |
 
 ## Engineering Notes
 
@@ -259,7 +310,9 @@ The code intentionally separates:
 - indicators from strategy logic
 - strategy logic from portfolio allocation
 - backtesting from paper-state persistence
+- execution dry-runs from real exchange adapters
 - research scripts from reusable modules
+- public architecture from private experimental sprint outputs
 
 This keeps the framework easier to test, review, and extend.
 

@@ -1,4 +1,4 @@
-# Architecture
+﻿# Architecture
 
 The project is split into reusable modules and small command-line scripts.
 
@@ -39,3 +39,17 @@ log event
 ```
 
 This makes each cycle restartable. If a scheduled process stops, the next run can restore the previous state from SQLite.
+
+## Operations Flow
+
+```mermaid
+flowchart LR
+    A["Paper Bot Reports"] --> B["Execution Dry-Run"]
+    A --> C["Risk Snapshot"]
+    B --> D["Readiness Check"]
+    C --> D
+    D --> E["Daily Journal"]
+    E --> F["Dashboard"]
+```
+
+The operations layer is intentionally report-driven. It reads bot outputs, estimates execution cost, aggregates exposure, and checks readiness without placing or signing orders.

@@ -1,4 +1,4 @@
-# Paper-Live Monitoring
+﻿# Paper-Live Monitoring
 
 The paper-live layer is designed to test whether the research system behaves correctly outside a historical replay.
 
@@ -54,3 +54,14 @@ Before a strategy is considered for real capital, the monitoring process should 
 ## Research Boundary
 
 The public repository documents the research architecture and monitoring process. Experimental lab scripts, raw market data, credentials, local databases, and messy sprint outputs should remain outside the public repo unless they are cleaned and converted into reusable examples.
+
+## Guardrail Reports
+
+The monitoring stack separates signal generation from operational checks:
+
+- execution dry-run: estimates fill price, fee, spread, and slippage for generated orders
+- risk snapshot: aggregates bot, symbol, and total paper exposure
+- readiness check: verifies heartbeat freshness, alerts, and manual pre-live conditions
+- daily journal: records the operational decision for the day
+
+A cycle can be healthy even when no new orders are generated, provided the heartbeat is fresh, reports update, risk warnings are clear, and open positions continue to mark.
