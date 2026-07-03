@@ -85,6 +85,7 @@ def arrow_safe_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
         safe[column] = safe[column].map(normalize)
     return safe
+
 def report_created_at(report: dict) -> str | None:
     return report.get("created_at") or report.get("finished_at") or report.get("timestamp")
 
@@ -265,6 +266,7 @@ bot7 = read_json("bot7_v6_latest.json")
 bot10 = read_json("bot10_growth_latest.json")
 bot26 = read_json("bot26_qqq_substitute_latest.json")
 seed_report = read_json("seed_active_inventory_latest.json")
+radar = read_json("signal_proximity_radar_latest.json")
 
 last_cycle = heartbeat.get("last_cycle_finished_at")
 last_cycle_age = age_minutes(last_cycle)
@@ -295,8 +297,8 @@ if abs(tally["difference"]) > 0.10:
         f"difference={tally['difference']:.4f}"
     )
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["Overview & Bots", "Why No Trades?", "Signals & Positions", "Charts & History", "Logs"]
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+    ["Overview & Bots", "Signal Radar", "Why No Trades?", "Signals & Positions", "Charts & History", "Logs"]
 )
 
 with tab1:
@@ -348,6 +350,67 @@ with tab1:
         st.info("No supervisor results found.")
 
 with tab2:
+    st.subheader("Signal Proximity Radar")
+    st.caption("Heuristic operations score. It explains live-paper silence; it is not a trading signal.")
+
+    radar_age = age_minutes(radar.get("created_at"))
+    radar_cols = st.columns(6)
+    radar_cols[0].metric("Radar Age", "n/a" if radar_age is None else f"{radar_age:.1f} min")
+    radar_cols[1].metric("Reports Checked", metric_value(radar.get("reports_checked")))
+    radar_cols[2].metric("Orders", metric_value(radar.get("orders_detected")))
+    radar_cols[3].metric("Holding Bots", metric_value(radar.get("holding_bots")))
+    radar_cols[4].metric("Waiting Bots", metric_value(radar.get("waiting_bots")))
+    radar_cols[5].metric("Stale Reports", metric_value(radar.get("stale_reports")))
+
+    closest = radar.get("closest_waiting", {})
+    if closest:
+        st.info(
+            "Closest waiting: "
+            f"{closest.get('bot', 'unknown')} / {closest.get('best_asset', 'n/a')} / "
+            f"{closest.get('proximity_pct', 'n/a')}% proximity. "
+            f"Blocker: {closest.get('blocker', 'n/a')}"
+        )
+    else:
+        st.warning("No fresh signal-bearing waiting bot is currently close to firing.")
+
+    radar_rows = pd.DataFrame(radar.get("top_rows", []))
+    if not radar_rows.empty:
+        columns = [
+            column
+            for column in [
+                "bot",
+                "status",
+                "proximity_pct",
+                "gate",
+                "best_asset",
+                "best_score",
+                "blocker",
+                "age_minutes",
+                "stale",
+                "signal_bearing",
+            ]
+            if column in radar_rows
+        ]
+        st.dataframe(arrow_safe_dataframe(radar_rows[columns]), use_container_width=True)
+
+        chart_rows = radar_rows.copy()
+        chart_rows["proximity_pct"] = pd.to_numeric(chart_rows["proximity_pct"], errors="coerce")
+        chart_rows = chart_rows.dropna(subset=["proximity_pct"])
+        if not chart_rows.empty:
+            st.plotly_chart(
+                px.bar(
+                    chart_rows,
+                    x="bot",
+                    y="proximity_pct",
+                    color="status",
+                    title="Signal Proximity by Bot",
+                ),
+                use_container_width=True,
+            )
+    else:
+        st.info("No signal proximity report found yet. The supervisor will create one on the next cycle.")
+
+with tab3:
     st.subheader("Why Nothing Has Fired Yet")
     if not distance.empty:
         preferred = [
@@ -369,7 +432,7 @@ with tab2:
     else:
         st.info("No latest bot reports found.")
 
-with tab3:
+with tab4:
     st.subheader("Bot7 Signals")
     signals = pd.DataFrame(bot7.get("signals", []))
     if not signals.empty:
@@ -409,7 +472,7 @@ with tab3:
     else:
         st.info("No open positions reported.")
 
-with tab4:
+with tab5:
     st.subheader("Equity & Performance Charts")
     eq_fig = plot_equity(portfolio.get("equity_history"))
     if eq_fig:
@@ -439,7 +502,7 @@ with tab4:
             use_container_width=True,
         )
 
-with tab5:
+with tab6:
     st.subheader("Recent Logs")
     if LOG_DIR.exists():
         recent_logs = sorted(LOG_DIR.glob("*.log"), key=lambda path: path.stat().st_mtime, reverse=True)[:8]
@@ -450,6 +513,8 @@ with tab5:
         with st.expander(path.name):
             text = path.read_text(encoding="utf-8", errors="replace")
             st.code("\n".join(text.splitlines()[-80:]), language="text")
+
+
 
 
 

@@ -87,6 +87,7 @@ This layer is designed to answer practical questions:
 - Which bots and assets are currently exposed?
 - Are any guardrails warning before tiny-live review?
 - Is the system waiting healthily or failing silently?
+- Which bot and asset are closest to firing, and what blocked them?
 
 More detail is available in [docs/operations.md](docs/operations.md) and [docs/live_monitoring.md](docs/live_monitoring.md).
 
@@ -160,6 +161,7 @@ These figures are historical research results and should not be treated as expec
 - Can regime filters reduce drawdown without removing too much upside?
 - Does a simple static allocation beat more complex dynamic allocators?
 - Is a quiet paper-live period healthy waiting or silent failure?
+- Which signal was closest to becoming actionable?
 - Would a generated order still make sense after spread, fee, and slippage assumptions?
 
 ## Project Structure
@@ -319,3 +321,4 @@ This keeps the framework easier to test, review, and extend.
 ## Disclaimer
 
 This repository is for research and portfolio-engineering demonstration only. It does not place live orders and should not be used as financial advice.
+

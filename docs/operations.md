@@ -1,4 +1,4 @@
-# Operations Layer
+﻿# Operations Layer
 
 The operational layer turns research outputs into monitored paper-live behavior. It is not a broker adapter and it does not place live orders. Its purpose is to make the system observable before any real capital is considered.
 
@@ -45,6 +45,7 @@ Healthy waiting looks like this:
 - latest cycle completed without alerts
 - execution simulator checked reports
 - risk manager has no warnings
+- signal proximity radar shows closest blocked setup and stale-report count
 - daily journal says to keep monitoring
 - equity and open positions continue to update
 
@@ -86,3 +87,4 @@ The public version should demonstrate:
 - reproducible examples
 
 It should not expose private trading accounts, API details, or unreviewed experimental scripts.
+
