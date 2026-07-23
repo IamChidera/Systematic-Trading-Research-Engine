@@ -1,10 +1,38 @@
 ﻿# Systematic Trading Research Engine
 
-A Python research framework for testing systematic crypto trading strategies across multiple assets, market regimes, portfolio allocations, and paper-live operations.
+> An auditable system for turning trading ideas into monitored, risk-controlled portfolios.
+
+[![CI](https://github.com/IamChidera/Systematic-Trading-Research-Engine/actions/workflows/ci.yml/badge.svg)](https://github.com/IamChidera/Systematic-Trading-Research-Engine/actions/workflows/ci.yml)
+
+A Python research and operations framework for testing systematic crypto strategies, rejecting fragile ideas, constructing portfolios, and monitoring paper/live readiness under explicit controls.
 
 The project demonstrates the engineering process behind an algorithmic trading system: data preparation, backtesting, walk-forward validation, fee stress testing, regime detection, portfolio construction, stateful paper monitoring, execution dry-runs, risk checks, and daily operational review.
 
 It is a research and engineering project, not financial advice or a promise of future returns.
+
+## Start Here
+
+| If you want to… | Open |
+| --- | --- |
+| Understand the product in two minutes | [Sellable evidence pack](docs/SELLABLE_EVIDENCE.md) |
+| See the honest maturity boundary | [Product maturity](docs/PRODUCT_MATURITY.md) |
+| Run the operating core end to end | `python -m trading_research.demo` |
+| Run a five-minute demonstration | [Demo video script](docs/demo_video_script.md) |
+| See how ideas earn promotion | [Strategy promotion pipeline](docs/assets/strategy_promotion_pipeline.svg) |
+| Understand system boundaries | [Architecture diagram](docs/assets/system_architecture.svg) |
+| Review weekly operations | [Weekly operating report](docs/weekly_operating_report.md) |
+| Inspect rejections and paper/live drift | [Failed strategy archive](docs/failed_strategy_archive.md) · [Live-vs-paper comparison](docs/live_vs_paper.md) |
+
+## Dashboard Evidence
+
+![Presentation-safe system status](docs/screenshots/system_status.png)
+
+The dashboard has a presentation-safe mode that masks private filesystem paths and the exact live account value while retaining operational state:
+
+```powershell
+$env:TRADING_DASHBOARD_DEMO="1"
+streamlit run dashboard\ops_dashboard.py
+```
 
 ## Highlights
 
@@ -20,6 +48,50 @@ It is a research and engineering project, not financial advice or a promise of f
 - Tiny-live readiness checks
 - Daily operations journal structure
 - Streamlit operations dashboard
+- Typed strategy-to-portfolio contracts
+- Account-relative target reconciliation
+- Explainable sell-before-buy order planning
+- Durable SQLite execution-decision ledger
+- Automated test and demo workflow in GitHub Actions
+
+## Professional Operating Core
+
+Version `0.2.0` adds a broker-neutral operating core rather than presenting
+monitoring documentation as if it were an execution product.
+
+```text
+independent sleeve targets
+  -> validated account-level portfolio target
+  -> current holdings reconciliation
+  -> exchange-minimum and cash checks
+  -> sell phase
+  -> post-sale reconciliation
+  -> buy phase
+  -> durable decision ledger
+```
+
+The execution policy is account-relative. It does not contain a fixed account
+value or fixed order-notional ceiling. Every planned ticket records its current
+weight, target weight, and strategy explanation.
+
+Run the deterministic local demonstration:
+
+```bash
+pip install -e ".[dev]"
+python -m trading_research.demo
+```
+
+The demo contacts no broker and submits no orders. It writes a two-cycle
+sell-then-buy report and SQLite ledger under `outputs/portfolio_demo/`.
+
+The public/private boundary is deliberate:
+
+- Public: contracts, portfolio construction, reconciliation, paper/dry-run
+  ledger, tests, dashboard, and reproducible examples.
+- Private: API credentials, account state, broker adapters, raw provider
+  messages, unreviewed research sprints, and proprietary strategy parameters.
+
+![Presentation-safe promoted portfolio](docs/screenshots/kraken_portfolio.png)
 
 ## Results Preview
 
@@ -35,6 +107,8 @@ The framework was used to compare strategy engines and portfolio allocations ove
 
 ## Architecture
 
+![Auditable system architecture](docs/assets/system_architecture.svg)
+
 The repository uses a package-first structure:
 
 ```text
@@ -46,12 +120,17 @@ src/trading_research/
   portfolio.py       allocation and correlation utilities
   paper_state.py     SQLite paper-state persistence
   ops.py             paper-live execution, risk, and readiness helpers
+  contracts.py       typed sleeve and account target contracts
+  execution.py       target reconciliation and explainable order planning
+  execution_ledger.py durable SQLite decision evidence
   metrics.py         return, CAGR, Sharpe, drawdown, and profit factor
 ```
 
 More detail is available in [docs/architecture.md](docs/architecture.md).
 
 ## Research Pipeline
+
+![Strategy promotion pipeline](docs/assets/strategy_promotion_pipeline.svg)
 
 ```text
 historical candles
@@ -184,6 +263,7 @@ Systematic-Trading-Research-Engine/
       ops.py
   scripts/
     run_backtest.py
+    run_portfolio_demo.py
     run_regime_scan.py
     run_paper_cycle.py
   dashboard/
@@ -253,6 +333,23 @@ python scripts/run_paper_cycle.py --state-file paper_state.db
 
 The paper cycle uses SQLite to preserve cash, positions, and events between runs.
 
+## Run The Portfolio Operating Demo
+
+```bash
+python -m trading_research.demo
+```
+
+This deterministic scenario proves that the operating core:
+
+- aggregates independent sleeve targets,
+- preserves unused capital as cash,
+- compares desired weights with actual holdings,
+- performs risk-reducing sells before buys,
+- waits for post-sale reconciliation before spending proceeds,
+- respects market minimums and quantity steps,
+- explains every ticket, and
+- records both cycles in an append-only SQLite ledger.
+
 ## Run the Operations Dashboard
 
 ```bash
@@ -285,7 +382,7 @@ Planned extensions:
 - richer chart generation from saved equity curves
 - additional walk-forward reporting
 - automated HTML performance reports
-- optional exchange adapter interface for paper/live separation
+- optional broker plugins behind the public execution contract
 - stricter tests for execution, risk, and readiness paths
 - permission-layer research across BTC, QQQ, credit, and alt-cycle leaders
 

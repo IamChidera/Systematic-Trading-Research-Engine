@@ -1,16 +1,22 @@
 ﻿# Operations Layer
 
-The operational layer turns research outputs into monitored paper-live behavior. It is not a broker adapter and it does not place live orders. Its purpose is to make the system observable before any real capital is considered.
+The operational layer turns research outputs into monitored paper-live behavior
+and explainable broker-neutral order plans. It does not contain a live broker
+adapter and it does not place live orders.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     A["Research Signals"] --> B["Paper-Live Supervisor"]
-    B --> C["Bot Reports"]
-    C --> D["Execution Simulator"]
-    C --> E["Risk Manager"]
-    D --> F["Dry-Run Order Tickets"]
+    B --> C["Typed Sleeve Targets"]
+    C --> J["Portfolio Target"]
+    J --> K["Holdings Reconciliation"]
+    K --> L["Execution Ledger"]
+    C --> D["Bot Reports"]
+    D --> M["Execution Simulator"]
+    D --> E["Risk Manager"]
+    M --> F["Dry-Run Order Tickets"]
     E --> G["Readiness Check"]
     B --> H["Daily Journal"]
     F --> H
@@ -24,6 +30,8 @@ flowchart LR
 | --- | --- | --- |
 | Supervisor | Runs one-shot paper bot cycles and records health | heartbeat report |
 | Execution simulator | Converts generated paper orders into dry-run fill estimates | simulated order tickets |
+| Portfolio reconciler | Converts account targets and current holdings into one sell or buy phase | explainable planned tickets |
+| Execution ledger | Stores decision cycles and ticket reasons in SQLite | auditable operating history |
 | Risk manager | Aggregates bot, symbol, and portfolio exposure | exposure and warning report |
 | Readiness check | Confirms paper ops are clean before tiny-live review | readiness status |
 | Daily journal | Summarises decisions, alerts, positions, and next actions | daily review note |
@@ -35,6 +43,8 @@ flowchart LR
 - A quiet period is acceptable if the heartbeat is fresh, reports update, and open positions are marked.
 - A strategy is not ready for real capital until execution assumptions, state recovery, and risk limits behave correctly.
 - Dry-run tickets are review artifacts only. They must never be treated as submitted exchange orders.
+- Risk-reducing sells are planned before buys; sale proceeds are not assumed available until broker state is refreshed.
+- Execution controls are account-relative and market-rule aware, not fixed cash-account tiers.
 - Manual exchange checks are required before any live adapter is connected.
 
 ## Healthy Waiting vs Silent Failure

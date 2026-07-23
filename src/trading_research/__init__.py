@@ -2,6 +2,10 @@
 
 __all__ = [
     "backtester",
+    "contracts",
+    "demo",
+    "execution",
+    "execution_ledger",
     "indicators",
     "metrics",
     "ops",

@@ -1,6 +1,8 @@
 .venv/
+build/
 __pycache__/
 *.pyc
+*.egg-info/
 *.db
 *.sqlite
 data/
@@ -9,3 +11,5 @@ reports/
 logs/
 .env
 .DS_Store
+# Obsolete pre-layout-fix screenshot retained locally only.
+docs/screenshots/portfolio_lab.png

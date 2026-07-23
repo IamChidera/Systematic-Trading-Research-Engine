@@ -4,14 +4,29 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "systematic-trading-research-engine"
-version = "0.1.0"
-description = "A Python research framework for systematic crypto trading strategy validation."
+version = "0.2.0"
+description = "An auditable research and portfolio operating core for systematic trading."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pandas>=2.0",
     "numpy>=1.24",
 ]
+
+[project.optional-dependencies]
+dashboard = [
+    "plotly>=5.18",
+    "streamlit>=1.31",
+]
+dev = [
+    "pytest>=8.0",
+]
+presentation = [
+    "playwright>=1.50",
+]
+
+[project.scripts]
+trading-research-demo = "trading_research.demo:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
